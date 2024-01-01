@@ -9,21 +9,22 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
+import { unstable_noStore as noStore } from 'next/cache';
 
 export async function fetchRevenue() {
   // Add noStore() here prevent the response from being cached.
   // This is equivalent to in fetch(..., {cache: 'no-store'}).
-
+  noStore();
   try {
     // Artificially delay a response for demo purposes.
     // Don't do this in production :)
 
-    // console.log('Fetching revenue data...');
-    // await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log('Fetching revenue data...');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     const data = await sql<Revenue>`SELECT * FROM revenue`;
 
-    // console.log('Data fetch completed after 3 seconds.');
+    console.log('Revenue fetch completed after 3 seconds.');
 
     return data.rows;
   } catch (error) {
@@ -33,14 +34,17 @@ export async function fetchRevenue() {
 }
 
 export async function fetchLatestInvoices() {
+  noStore();
+
   try {
+    console.log('Fetching invoice data...');
     const data = await sql<LatestInvoiceRaw>`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       ORDER BY invoices.date DESC
       LIMIT 5`;
-
+    console.log('Invoices fetch completed');
     const latestInvoices = data.rows.map((invoice) => ({
       ...invoice,
       amount: formatCurrency(invoice.amount),
@@ -53,10 +57,13 @@ export async function fetchLatestInvoices() {
 }
 
 export async function fetchCardData() {
+  noStore();
   try {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
+    console.log('fetching Cards data');
+
     const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
     const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
     const invoiceStatusPromise = sql`SELECT
@@ -69,18 +76,19 @@ export async function fetchCardData() {
       customerCountPromise,
       invoiceStatusPromise,
     ]);
+    console.log('Cards completed');
 
     const numberOfInvoices = Number(data[0].rows[0].count ?? '0');
     const numberOfCustomers = Number(data[1].rows[0].count ?? '0');
     const totalPaidInvoices = formatCurrency(data[2].rows[0].paid ?? '0');
     const totalPendingInvoices = formatCurrency(data[2].rows[0].pending ?? '0');
 
-    return {
+    return await Promise.all([
       numberOfCustomers,
       numberOfInvoices,
       totalPaidInvoices,
       totalPendingInvoices,
-    };
+    ]);
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch card data.');
@@ -92,8 +100,8 @@ export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
 ) {
+  noStore();
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-
   try {
     const invoices = await sql<InvoicesTable>`
       SELECT
@@ -124,7 +132,9 @@ export async function fetchFilteredInvoices(
 }
 
 export async function fetchInvoicesPages(query: string) {
+  noStore();
   try {
+    console.log('fetchInvoicesPages');
     const count = await sql`SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
@@ -145,6 +155,7 @@ export async function fetchInvoicesPages(query: string) {
 }
 
 export async function fetchInvoiceById(id: string) {
+  noStore();
   try {
     const data = await sql<InvoiceForm>`
       SELECT
@@ -170,6 +181,7 @@ export async function fetchInvoiceById(id: string) {
 }
 
 export async function fetchCustomers() {
+  noStore();
   try {
     const data = await sql<CustomerField>`
       SELECT
@@ -188,6 +200,7 @@ export async function fetchCustomers() {
 }
 
 export async function fetchFilteredCustomers(query: string) {
+  noStore();
   try {
     const data = await sql<CustomersTableType>`
 		SELECT
@@ -221,6 +234,7 @@ export async function fetchFilteredCustomers(query: string) {
 }
 
 export async function getUser(email: string) {
+  noStore();
   try {
     const user = await sql`SELECT * FROM users WHERE email=${email}`;
     return user.rows[0] as User;
